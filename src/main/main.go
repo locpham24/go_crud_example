@@ -3,9 +3,12 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
+	"github.com/labstack/echo/middleware"
 	"log"
 	"net/http"
+	"time"
 
+	jwt "github.com/dgrijalva/jwt-go"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/labstack/echo"
 )
@@ -15,6 +18,14 @@ type Task struct {
 	Title string `json:"title"`
 	Done  int    `json:"done"`
 }
+
+type JwtClaims struct {
+	Name string `json:"name"`
+	jwt.StandardClaims
+}
+
+// Create the JWT key used to create the signature
+var jwtKey = []byte("ToDoApp")
 
 func dbConn() (db *sql.DB) {
 	dbDriver := "mysql"
@@ -151,14 +162,88 @@ func delete(c echo.Context) error {
 	return c.String(http.StatusOK, "ok")
 }
 
+//////////////////// middlewares ///////////////////////
+func authWithJwt(next echo.HandlerFunc) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		user := c.Get("user")
+		token := user.(*jwt.Token)
+
+		claims := token.Claims.(jwt.MapClaims)
+
+		log.Println("User Name: ", claims["name"], "User ID: ", claims["jti"])
+
+		return next(c)
+	}
+}
+
+func login(c echo.Context) error {
+	username := c.QueryParam("username")
+	password := c.QueryParam("password")
+
+	if username == "admin" && password == "admin" {
+		//Create token
+		token, err := createJwtToken("admin", "1")
+		if err != nil {
+			log.Println("Error Creating Jwt Token", err)
+			return c.String(http.StatusInternalServerError, "something went wrong")
+		}
+		return c.JSON(http.StatusOK, map[string]string{
+			"token":   token,
+			"message": "You were log in!",
+		})
+	}
+
+	if username == "chris" && password == "123456" {
+		//Create token
+		token, err := createJwtToken("chris", "2")
+		if err != nil {
+			log.Println("Error Creating Jwt Token", err)
+			return c.String(http.StatusInternalServerError, "something went wrong")
+		}
+		return c.JSON(http.StatusOK, map[string]string{
+			"token":   token,
+			"message": "You were log in!",
+		})
+	}
+
+	return c.String(http.StatusUnauthorized, "Your username or password is not correct")
+}
+
+func createJwtToken(name string, id string) (string, error) {
+	jwtClaims := JwtClaims{
+		name,
+		jwt.StandardClaims{
+			ExpiresAt: time.Now().Add(24 * time.Hour).Unix(),
+			Id:        id,
+		},
+	}
+	rawToken := jwt.NewWithClaims(jwt.SigningMethodHS512, jwtClaims)
+	token, err := rawToken.SignedString(jwtKey)
+	if err != nil {
+		return "", err
+	}
+	return token, nil
+}
+
 func main() {
 	log.Println("Server started on: localhost:8080")
 	e := echo.New()
 
-	e.GET("/", getAll)
-	e.POST("/", create)
-	e.GET("/:id", show)
-	e.PUT("/:id", update)
-	e.DELETE("/:id", delete)
+	taskGroup := e.Group("/task")
+
+	taskGroup.Use(middleware.JWTWithConfig(middleware.JWTConfig{
+		SigningMethod: "HS512",
+		SigningKey:    jwtKey,
+	}))
+
+	taskGroup.Use(authWithJwt)
+
+	taskGroup.GET("", getAll)
+	taskGroup.POST("", create)
+	taskGroup.GET("/:id", show)
+	taskGroup.PUT("/:id", update)
+	taskGroup.DELETE("/:id", delete)
+
+	e.GET("/login", login)
 	e.Logger.Fatal(e.Start(":8080"))
 }
