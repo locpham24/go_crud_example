@@ -2,18 +2,18 @@ package main
 
 import (
 	"database/sql"
+	"encoding/json"
 	"log"
 	"net/http"
-	"encoding/json"
 
-	"github.com/labstack/echo"
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/labstack/echo"
 )
 
 type Task struct {
-	Id		int
-	Title 	string		`json:"title"`
-	Done 	int			`json:"done"`
+	Id    int
+	Title string `json:"title"`
+	Done  int    `json:"done"`
 }
 
 func dbConn() (db *sql.DB) {
@@ -29,7 +29,7 @@ func dbConn() (db *sql.DB) {
 	return db
 }
 
-func getAll (c echo.Context) error {
+func getAll(c echo.Context) error {
 	task := Task{}
 	res := []Task{}
 
@@ -39,7 +39,7 @@ func getAll (c echo.Context) error {
 		panic(err.Error())
 	}
 
-	for selDb.Next(){
+	for selDb.Next() {
 		var id, done int
 		var title string
 		err = selDb.Scan(&id, &title, &done)
@@ -60,7 +60,7 @@ func getAll (c echo.Context) error {
 	return c.String(http.StatusOK, string(resJson))
 }
 
-func create (c echo.Context) error {
+func create(c echo.Context) error {
 	db := dbConn()
 	defer c.Request().Body.Close()
 	defer db.Close()
@@ -80,20 +80,20 @@ func create (c echo.Context) error {
 	return c.String(http.StatusOK, "ok")
 }
 
-func show (c echo.Context) error {
+func show(c echo.Context) error {
 	db := dbConn()
 	defer c.Request().Body.Close()
 	defer db.Close()
 
 	id := c.Param("id")
 
-	selDb, err := db.Query("SELECT * FROM task WHERE id='"+id+"'")
+	selDb, err := db.Query("SELECT * FROM task WHERE id='" + id + "'")
 	if err != nil {
 		panic(err.Error())
 	}
 	task := Task{}
 
-	for selDb.Next(){
+	for selDb.Next() {
 		var id, done int
 		var title string
 
@@ -151,7 +151,7 @@ func delete(c echo.Context) error {
 	return c.String(http.StatusOK, "ok")
 }
 
-func main(){
+func main() {
 	log.Println("Server started on: localhost:8080")
 	e := echo.New()
 
@@ -162,4 +162,3 @@ func main(){
 	e.DELETE("/:id", delete)
 	e.Logger.Fatal(e.Start(":8080"))
 }
-
