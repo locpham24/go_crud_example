@@ -6,6 +6,7 @@ import (
 	"github.com/labstack/echo/middleware"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 
 	jwt "github.com/dgrijalva/jwt-go"
@@ -13,10 +14,16 @@ import (
 	"github.com/labstack/echo"
 )
 
+type User struct {
+	Id   int
+	Name string `json:"name"`
+}
+
 type Task struct {
-	Id    int
-	Title string `json:"title"`
-	Done  int    `json:"done"`
+	Id     int
+	UserId int    `json:"user_id"`
+	Title  string `json:"title"`
+	Done   int    `json:"done"`
 }
 
 type JwtClaims struct {
@@ -41,23 +48,26 @@ func dbConn() (db *sql.DB) {
 }
 
 func getAll(c echo.Context) error {
+	user := c.Get("current_user").(User)
+
 	task := Task{}
 	res := []Task{}
 
 	db := dbConn()
-	selDb, err := db.Query("SELECT * FROM task ORDER BY id DESC")
+	selDb, err := db.Query("SELECT * FROM task WHERE user_id='" + strconv.Itoa(user.Id) + "' ORDER BY id DESC")
 	if err != nil {
 		panic(err.Error())
 	}
 
 	for selDb.Next() {
-		var id, done int
+		var id, userId, done int
 		var title string
-		err = selDb.Scan(&id, &title, &done)
+		err = selDb.Scan(&id, &userId, &title, &done)
 		if err != nil {
 			panic(err.Error())
 		}
 		task.Id = id
+		task.UserId = userId
 		task.Title = title
 		task.Done = done
 
@@ -72,6 +82,9 @@ func getAll(c echo.Context) error {
 }
 
 func create(c echo.Context) error {
+	user := c.Get("current_user").(User)
+	log.Println("create route: User Name: ", user.Name, "User ID: ", user.Id)
+
 	db := dbConn()
 	defer c.Request().Body.Close()
 	defer db.Close()
@@ -82,16 +95,19 @@ func create(c echo.Context) error {
 		panic(err.Error())
 	}
 
-	insForm, err := db.Prepare("INSERT INTO task(title,done) VALUES(?,?)")
+	insForm, err := db.Prepare("INSERT INTO task(user_id, title, done) VALUES(?,?,?)")
 	if err != nil {
 		panic(err.Error())
 	}
-	insForm.Exec(task.Title, 0)
+	insForm.Exec(user.Id, task.Title, 0)
 
 	return c.String(http.StatusOK, "ok")
 }
 
 func show(c echo.Context) error {
+	//get current user
+	user := c.Get("current_user").(User)
+
 	db := dbConn()
 	defer c.Request().Body.Close()
 	defer db.Close()
@@ -105,21 +121,26 @@ func show(c echo.Context) error {
 	task := Task{}
 
 	for selDb.Next() {
-		var id, done int
+		var id, done, userId int
 		var title string
 
-		err = selDb.Scan(&id, &title, &done)
+		err = selDb.Scan(&id, &userId, &title, &done)
 
 		if err != nil {
 			panic(err.Error())
 		}
 		task.Id = id
+		task.UserId = userId
 		task.Title = title
 		task.Done = done
 	}
 
 	if task.Id == 0 {
 		return c.String(http.StatusNotFound, "Not found")
+	}
+
+	if task.UserId != user.Id {
+		return c.String(http.StatusUnauthorized, "You have no permission to view this task")
 	}
 
 	taskJson, err := json.Marshal(task)
@@ -169,6 +190,17 @@ func authWithJwt(next echo.HandlerFunc) echo.HandlerFunc {
 		token := user.(*jwt.Token)
 
 		claims := token.Claims.(jwt.MapClaims)
+		userId, err := strconv.Atoi(claims["jti"].(string))
+
+		if err != nil {
+
+		}
+
+		curUser := User{
+			Id:   userId,
+			Name: claims["name"].(string),
+		}
+		c.Set("current_user", curUser)
 
 		log.Println("User Name: ", claims["name"], "User ID: ", claims["jti"])
 
