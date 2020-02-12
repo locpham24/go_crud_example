@@ -1,8 +1,8 @@
 package main
 
 import (
-	"database/sql"
 	"encoding/json"
+	"fmt"
 	"github.com/labstack/echo/middleware"
 	"log"
 	"net/http"
@@ -12,6 +12,7 @@ import (
 	jwt "github.com/dgrijalva/jwt-go"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/labstack/echo"
+	"main/db"
 )
 
 type User struct {
@@ -34,26 +35,13 @@ type JwtClaims struct {
 // Create the JWT key used to create the signature
 var jwtKey = []byte("ToDoApp")
 
-func dbConn() (db *sql.DB) {
-	dbDriver := "mysql"
-	dbUser := "root"
-	dbPass := ""
-	dbName := "go_crud_example"
-
-	db, err := sql.Open(dbDriver, dbUser+":"+dbPass+"@/"+dbName)
-	if err != nil {
-		panic(err.Error())
-	}
-	return db
-}
-
 func getAll(c echo.Context) error {
 	user := c.Get("current_user").(User)
 
 	task := Task{}
 	res := []Task{}
 
-	db := dbConn()
+	db := db.GetInstance()
 	selDb, err := db.Query("SELECT * FROM task WHERE user_id='" + strconv.Itoa(user.Id) + "' ORDER BY id DESC")
 	if err != nil {
 		panic(err.Error())
@@ -85,7 +73,7 @@ func create(c echo.Context) error {
 	user := c.Get("current_user").(User)
 	log.Println("create route: User Name: ", user.Name, "User ID: ", user.Id)
 
-	db := dbConn()
+	db := db.GetInstance()
 	defer c.Request().Body.Close()
 	defer db.Close()
 
@@ -108,9 +96,8 @@ func show(c echo.Context) error {
 	//get current user
 	user := c.Get("current_user").(User)
 
-	db := dbConn()
+	db := db.GetInstance()
 	defer c.Request().Body.Close()
-	defer db.Close()
 
 	id := c.Param("id")
 
@@ -151,7 +138,7 @@ func show(c echo.Context) error {
 }
 
 func update(c echo.Context) error {
-	db := dbConn()
+	db := db.GetInstance()
 	defer c.Request().Body.Close()
 	defer db.Close()
 
@@ -169,7 +156,8 @@ func update(c echo.Context) error {
 }
 
 func delete(c echo.Context) error {
-	db := dbConn()
+	db := db.GetInstance()
+	fmt.Println("address of db is", db)
 	defer c.Request().Body.Close()
 	defer db.Close()
 
