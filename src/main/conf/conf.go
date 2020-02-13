@@ -7,3 +7,5 @@ const (
 	HOST     string = "localhost"
 	PORT     string = "8080"
 )
+
+var JwtKey = []byte("ToDoApp")
