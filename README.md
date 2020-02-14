@@ -4,7 +4,9 @@ Summary: A user can create/view/update/delete his tasks. A user can only view hi
 
 ## What I have learned
 1. CRUD functions with Mysql
-2. Authentication: Using JWT
+2. Middleware to setHeader & Authentication (Using JWT)
+3. Apply singleton to create database instance
+4. Retrieve params from POST request (without using Bind a struct) 
 
 ## API Document
 ## Group Task
@@ -70,7 +72,7 @@ Route: `/task/:id`
 #### Login
 Hard code with username/password to get token for testing
 
-Method: `GET`
+Method: `POST`
 
 Route: `/login`
 
